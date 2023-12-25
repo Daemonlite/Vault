@@ -25,6 +25,7 @@ connectDb()
 //routes
 app.use('/api/users',require('./routes/userRoutes'))
 app.use('/api/services',require('./routes/serviceRoutes'))
+app.use('/api/credentials',require('./routes/credentialRoutes'))
 
 
 app.listen(port,()=>console.log(`SERVER RUNNING ON PORT ${port}`))
