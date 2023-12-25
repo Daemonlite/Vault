@@ -1,52 +1,57 @@
-const User = require('../models/userModel')
+const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cloudinary = require("cloudinary").v2;
-const {generateAccessToken,generateRefreshToken} = require('../middlewares/genToken')
-const {sendMail} = require('../helpers/send_mail')
-const cache = require('memory-cache');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../middlewares/genToken");
+const { sendMail } = require("../helpers/send_mail");
+const cache = require("memory-cache");
 
-const fetch_users = async (req,res) => {
-    try {
-       const users =  await User.find() 
-       if (users.length() > 0) {
-           res.status(200).json({"success":true,"info":users})
-       }else{
-        return res.status(400).json({"success":false,"info":"No registered users found"})
-       }
-        
-    } catch (error) {
-        console.log(error)
-        res.status(400).json({"success":false,"info":"unable to fetch users"})
+const fetch_users = async (req, res) => {
+  try {
+    const users = await User.find();
+    if (users.length() > 0) {
+      res.status(200).json({ success: true, info: users });
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, info: "No registered users found" });
     }
-}
+  } catch (error) {
+    console.log(error);
+    res.status(400).json({ success: false, info: "unable to fetch users" });
+  }
+};
 
-const fetch_user_by_id = async (req,res) => {
-    try {
-        const user = await User.findById(req.params.id)
-        if (user) {
-            return res.status(200).json({"success":true,"info":user})
-        }else{
-            return res.status(400).json({"success":false,"info":"No user found"})
-        }
-        
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({"success":false,"info":"unable to fetch user"})
+const fetch_user_by_id = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (user) {
+      return res.status(200).json({ success: true, info: user });
+    } else {
+      return res.status(400).json({ success: false, info: "No user found" });
     }
-}
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, info: "unable to fetch user" });
+  }
+};
 
 // TODO:send verification mail to user and resend mail
 const sendOtp = async (email) => {
-    try {
-        const otp = Math.floor(10000 + Math.random() * 90000)
-        const user = await User.findOne({ email });
+  try {
+    const otp = Math.floor(10000 + Math.random() * 90000);
+    const user = await User.findOne({ email });
 
-        const username = user.username
+    const username = user.username;
 
-        // Send the OTP to the user's email
-        const mailSubject = "Complete your registration";
-        let content =`<!DOCTYPE html>
+    // Send the OTP to the user's email
+    const mailSubject = "Complete your registration";
+    let content = `<!DOCTYPE html>
 
         <html lang="en" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml">
         <head>
@@ -243,228 +248,265 @@ const sendOtp = async (email) => {
         </table><!-- End -->
         </body>
         </html>
-        `
-    
-        await sendMail(email, mailSubject, content);
+        `;
 
-        // Store the OTP in cache
-        cach = cache.put(email, otp);
-        console.log(cach)
-        
-        return { success: true, info: "OTP sent successfully" };
-        
-    } catch (error) {
-        console.log(error);
-        throw new Error("An error occurred");
-    }
+    await sendMail(email, mailSubject, content);
+
+    // Store the OTP in cache
+    cach = cache.put(email, otp);
+    console.log(cach);
+
+    return { success: true, info: "OTP sent successfully" };
+  } catch (error) {
+    console.log(error);
+    throw new Error("An error occurred");
+  }
 };
 
 const register_user = async (req, res) => {
-    try {
-        const { username, fullname, email, phone, password } = req.body
+  try {
+    const { username, fullname, email, phone, password } = req.body;
 
-        if (!username || !fullname || !email || !phone || !password) {
-            return res.status(400).json({ "success": false, "info": "all fields are required" })
-        }
-
-        const users = await User.findOne({ email })
-        if (users) {
-            return res.status(400).json({ "success": false, "info": "user already exists" })
-        }
-
-        if (phone.length !== 10) {
-            return res.status(400).json({ "success": false, "info": "invalid phone number" })
-        }
-
-        if (!/[A-Z]/.test(password) || !/[!@#$%^&*]/.test(password) || password.length < 8) {
-            return res.status(400).json({ "success": false, "info": "password must contain at least one capital letter, one symbol, and be at least 8 characters long" })
-        }
-        
-       const hashed_passsword = await bcrypt.hash(password, 10)
-
-       const user = await User.create({
-           username,
-           fullname,
-           email,
-           phone,
-           password: hashed_passsword
-       })
-
-
-        if (user) {
-            sendOtp(email)
-           return res.status(200).json({ "success": true, "info": "user created successfully, check your email for otp" })
-       }
-        
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({ "success": false, "info": "unable to register user" })
+    if (!username || !fullname || !email || !phone || !password) {
+      return res
+        .status(400)
+        .json({ success: false, info: "all fields are required" });
     }
-}
 
-const login_user = async (req,res) => {
-    try {
-        const {email,password} = req.body
-
-        if (!email || !password){
-            return res.status(400).json({"success":false,"info":"email or password is missing"})
-        }
-
-        const user  = User.findOne({email})
-
-        if (!user){
-            return res.status(404).json({"success":false,"info":"Email entered does not exist"})
-        }
-
-        pass = bcrypt.compare(user.password,password)
-        access_token = generateAccessToken(user._id)
-        refresh_token = generateRefreshToken(user._id)
-
-        if (pass){
-            return res.status(200).json({
-                "success":true,
-                "info":{
-                    "access_token":access_token,
-                    "refresh_token":refresh_token
-                }
-            })
-        }
-
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({"success":false,"info":"an error ocurred"})
+    const users = await User.findOne({ email });
+    if (users) {
+      return res
+        .status(400)
+        .json({ success: false, info: "user already exists" });
     }
-}
 
+    if (phone.length !== 10) {
+      return res
+        .status(400)
+        .json({ success: false, info: "invalid phone number" });
+    }
+
+    if (
+      !/[A-Z]/.test(password) ||
+      !/[!@#$%^&*]/.test(password) ||
+      password.length < 8
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          info: "password must contain at least one capital letter, one symbol, and be at least 8 characters long",
+        });
+    }
+
+    const hashed_passsword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      username,
+      fullname,
+      email,
+      phone,
+      password: hashed_passsword,
+    });
+
+    if (user) {
+      sendOtp(email);
+      return res
+        .status(200)
+        .json({
+          success: true,
+          info: "user created successfully, check your email for otp",
+        });
+    }
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, info: "unable to register user" });
+  }
+};
+
+const login_user = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ success: false, info: "email or password is missing" });
+    }
+
+    const user = User.findOne({ email });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, info: "Email entered does not exist" });
+    }
+
+    pass = bcrypt.compare(user.password, password);
+    access_token = generateAccessToken(user._id);
+    refresh_token = generateRefreshToken(user._id);
+
+    if (pass) {
+      return res.status(200).json({
+        success: true,
+        info: {
+          access_token: access_token,
+          refresh_token: refresh_token,
+        },
+      });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, info: "an error ocurred" });
+  }
+};
 
 const resend_otp = async (req, res) => {
-    try {
-        const { email } = req.body;
-        await sendOtp(email);
+  try {
+    const { email } = req.body;
+    await sendOtp(email);
 
-        return res.status(200).json({ success: true, info: "OTP resent successfully" });
-
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ success: false, info: "An error occurred" });
-    }
+    return res
+      .status(200)
+      .json({ success: true, info: "OTP resent successfully" });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, info: "An error occurred" });
+  }
 };
-
 
 const verify_email = async (req, res) => {
-    try {
-        const { email, otp } = req.body;
-        
-        // Retrieve the stored OTP from the cache
-        const storedOtp = cache.get(email);
+  try {
+    const { email, otp } = req.body;
 
-        // Check if the stored OTP matches the OTP provided in the request
-        if (!storedOtp || storedOtp !== parseInt(otp)) {
-            return res.status(400).json({ success: false, info: "Invalid OTP" });
-        }
+    // Retrieve the stored OTP from the cache
+    const storedOtp = cache.get(email);
 
-        // Update the user's email verification status in the database
-        const updatedUser = await User.findOneAndUpdate({ email }, { emailVerified: true }, { new: true });
-
-        // Remove the OTP from the cache only if the OTP passed is correct
-        if (storedOtp === parseInt(otp)) {
-            cache.del(email);
-        }
-
-        return res.status(200).json({ success: true, info: "Email verified successfully",  });
-        
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ success: false, info: "An error occurred" });
+    // Check if the stored OTP matches the OTP provided in the request
+    if (!storedOtp || storedOtp !== parseInt(otp)) {
+      return res.status(400).json({ success: false, info: "Invalid OTP" });
     }
+
+    // Update the user's email verification status in the database
+    const updatedUser = await User.findOneAndUpdate(
+      { email },
+      { emailVerified: true },
+      { new: true }
+    );
+
+    // Remove the OTP from the cache only if the OTP passed is correct
+    if (storedOtp === parseInt(otp)) {
+      cache.del(email);
+    }
+
+    return res
+      .status(200)
+      .json({ success: true, info: "Email verified successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, info: "An error occurred" });
+  }
 };
 
-
-
-
 const upload_profile_image = async (req, res) => {
-    try {
-        const { userId, image } = req.body;
+  try {
+    const { userId, image } = req.body;
 
-        if (!userId || !image) {
-            return res.status(400).json({ "success": false, "info": "Kindly enter required fields" });
-        }
-
-        // Retrieve user by ID
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({ "success": false, "info": "User not found" });
-        }
-
-        // Upload profile image to Cloudinary
-        let profileImageUrl;
-        try {
-            const result = await cloudinary.uploader.upload(image);
-            profileImageUrl = result.secure_url;
-        } catch (error) {
-            console.error(error);
-            return res.status(400).json({ message: "Failed to upload profile image" });
-        }
-
-        // Update user's profile image
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            {
-                profile: profileImageUrl,
-            },
-            { new: true } 
-        );
-
-        return res.status(200).json({ "success": true, "info": "Profile image uploaded successfully", "user": updatedUser });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ "success": false, "info": "An error occurred during profile upload" });
+    if (!userId || !image) {
+      return res
+        .status(400)
+        .json({ success: false, info: "Kindly enter required fields" });
     }
+
+    // Retrieve user by ID
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, info: "User not found" });
+    }
+
+    // Upload profile image to Cloudinary
+    let profileImageUrl;
+    try {
+      const result = await cloudinary.uploader.upload(image);
+      profileImageUrl = result.secure_url;
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(400)
+        .json({ message: "Failed to upload profile image" });
+    }
+
+    // Update user's profile image
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        profile: profileImageUrl,
+      },
+      { new: true }
+    );
+
+    return res
+      .status(200)
+      .json({
+        success: true,
+        info: "Profile image uploaded successfully",
+        user: updatedUser,
+      });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        info: "An error occurred during profile upload",
+      });
+  }
 };
 
 const updateUserInfo = async (req, res) => {
-    const { id,updatedInfo } = req.body;
-    
-    try {
-      const updatedUser = await User.findByIdAndUpdate(id, updatedInfo, {
-        new: true,
-      });
-      
-      if (!updatedUser) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      res.status(200).json(updatedUser);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Failed to update user info" });
+  const { id, updatedInfo } = req.body;
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(id, updatedInfo, {
+      new: true,
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
     }
-  };
 
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to update user info" });
+  }
+};
 
-  const deleteUser = async (req, res) => {
-    try {
-      const { id } = req.body;
-      const deletedUser = await User.findByIdAndDelete(id);
-      if (!deletedUser) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      return res.status(200).json({ message: "User deleted successfully" });
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "Failed to delete user" });
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.body;
+    const deletedUser = await User.findByIdAndDelete(id);
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
     }
-  };
+    return res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Failed to delete user" });
+  }
+};
 
-module.exports  = {
-    fetch_users,
-    fetch_user_by_id,
-    register_user,
-    login_user,
-    verify_email,
-    resend_otp,
-    upload_profile_image,
-    updateUserInfo,
-    deleteUser
-}
+module.exports = {
+  fetch_users,
+  fetch_user_by_id,
+  register_user,
+  login_user,
+  verify_email,
+  resend_otp,
+  upload_profile_image,
+  updateUserInfo,
+  deleteUser,
+};

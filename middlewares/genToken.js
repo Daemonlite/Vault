@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
+const crypto = require('crypto');
 
 const secretKey = process.env.SECRET;
 
@@ -35,7 +36,11 @@ const generateRefreshToken = (userId) => {
   return jwt.sign(payload, secretKey, options);
 };
 
+
+
+
 module.exports = {
   generateAccessToken,
   generateRefreshToken,
+
 };
