@@ -336,7 +336,7 @@ const login_user = async (req, res) => {
         .json({ success: false, info: "email or password is missing" });
     }
 
-    const user = User.findOne({ email });
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res
@@ -344,9 +344,9 @@ const login_user = async (req, res) => {
         .json({ success: false, info: "Email entered does not exist" });
     }
 
-    pass = bcrypt.compare(user.password, password);
-    access_token = generateAccessToken(user._id);
-    refresh_token = generateRefreshToken(user._id);
+    const pass = await bcrypt.compare(password, user.password);
+    const access_token = generateAccessToken(user._id);
+    const refresh_token = generateRefreshToken(user._id);
 
     if (pass) {
       return res.status(200).json({
@@ -359,7 +359,7 @@ const login_user = async (req, res) => {
     }
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ success: false, info: "an error ocurred" });
+    return res.status(500).json({ success: false, info: "an error occurred" });
   }
 };
 
@@ -389,7 +389,7 @@ const verify_email = async (req, res) => {
       return res.status(400).json({ success: false, info: "Invalid OTP" });
     }
 
-    // Update the user's email verification status in the database
+    
     const updatedUser = await User.findOneAndUpdate(
       { email },
       { emailVerified: true },
